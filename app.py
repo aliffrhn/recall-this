@@ -2,8 +2,9 @@ import logging
 import os
 import tempfile
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional, Tuple
 
+import requests
 import whisper
 from flask import Flask, jsonify, render_template, request
 
@@ -42,6 +43,10 @@ MODEL_DESCRIPTIONS = {
 DEFAULT_LANGUAGE = os.environ.get("WHISPER_LANGUAGE")
 _MODEL_CACHE: Dict[str, whisper.Whisper] = {}
 
+DEFAULT_OPENAI_MODEL = os.environ.get("OPENAI_SUMMARY_MODEL", "gpt-4o-mini")
+DEFAULT_OPENAI_KEY = os.environ.get("OPENAI_API_KEY")
+OPENAI_BASE_URL = os.environ.get("OPENAI_API_BASE", "https://api.openai.com/v1").rstrip("/")
+
 
 def get_model(model_name: str):
     if model_name not in _MODEL_CACHE:
@@ -49,6 +54,61 @@ def get_model(model_name: str):
         _MODEL_CACHE[model_name] = whisper.load_model(model_name)
         app.logger.info("Whisper model '%s' ready", model_name)
     return _MODEL_CACHE[model_name]
+
+
+def summarize_transcript(text: str, api_key: str, language: Optional[str]) -> Tuple[Optional[str], Optional[str]]:
+    if not api_key:
+        return None, "Add an OpenAI API key to generate a summary."
+    transcript = text.strip()
+    if not transcript:
+        return None, "Transcript is empty, nothing to summarize."
+
+    endpoint = f"{OPENAI_BASE_URL}/chat/completions"
+    payload = {
+        "model": DEFAULT_OPENAI_MODEL,
+        "temperature": 0.4,
+        "max_tokens": 320,
+        "messages": [
+            {
+                "role": "system",
+                "content": (
+                    "You are Recall, an assistant that turns meeting transcripts into concise recaps. "
+                    "Highlight decisions, owners, and next steps in plain language."
+                ),
+            },
+            {
+                "role": "user",
+                "content": (
+                    "Meeting language: {lang}\n"
+                    "Provide a short summary (3-5 bullet points) for this transcript:\n\n{transcript}"
+                ).format(lang=language or "auto", transcript=transcript),
+            },
+        ],
+    }
+
+    try:
+        response = requests.post(
+            endpoint,
+            json=payload,
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout=60,
+        )
+        response.raise_for_status()
+        try:
+            data = response.json()
+        except ValueError as exc:  # pragma: no cover - network guard
+            app.logger.exception("Failed to parse OpenAI response: %s", exc)
+            return None, "OpenAI response could not be parsed."
+        choices = data.get("choices") or []
+        if not choices:
+            return None, "OpenAI response did not contain choices."
+        summary = choices[0].get("message", {}).get("content", "").strip()
+        if not summary:
+            return None, "OpenAI response did not include text."
+        return summary, None
+    except requests.RequestException as exc:
+        app.logger.exception("Summary generation failed: %s", exc)
+        return None, str(exc)
 
 def allowed_file(filename: str) -> bool:
     return Path(filename).suffix.lower() in ALLOWED_EXTENSIONS
@@ -75,6 +135,7 @@ def index():
         model_options=model_options,
         default_model=DEFAULT_MODEL,
         default_model_description=MODEL_DESCRIPTIONS.get(DEFAULT_MODEL, "Balanced performance"),
+        has_default_openai=bool(DEFAULT_OPENAI_KEY),
     )
 
 @app.post("/transcribe")
@@ -139,6 +200,23 @@ def transcribe():
             "segments": segments,
         }
     )
+
+
+@app.post("/summarize")
+def summarize():
+    payload = request.get_json(silent=True) or {}
+    transcript_text = (payload.get("text") or "").strip()
+    language = payload.get("language")
+    provided_api_key = (payload.get("openai_api_key") or "").strip()
+    summary_api_key = provided_api_key or (DEFAULT_OPENAI_KEY or "")
+
+    summary_text, summary_error = summarize_transcript(transcript_text, summary_api_key, language)
+
+    if summary_text:
+        return jsonify({"summary": summary_text, "summary_model": DEFAULT_OPENAI_MODEL})
+
+    error_message = summary_error or "Unable to create a summary."
+    return jsonify({"error": error_message}), 400
 
 
 if __name__ == "__main__":

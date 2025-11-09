@@ -7,6 +7,35 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
   </head>
   <body>
+    <div id="settings-backdrop" class="settings-backdrop" hidden></div>
+    <aside id="settings-panel" class="settings-panel" aria-hidden="true" hidden>
+      <div class="settings-header">
+        <h2>OpenAI key</h2>
+        <button id="settings-close" class="ghost-button ghost-compact" type="button">Done</button>
+      </div>
+      <div class="settings-body">
+        <label for="openai-key">OpenAI API key</label>
+        <input
+          id="openai-key"
+          name="openai_api_key"
+          type="password"
+          placeholder="sk-..."
+          autocomplete="off"
+        />
+        <p class="hint">
+          {% if has_default_openai %}
+          Using server default when blank. Your key only lives in this browser.
+          {% else %}
+          Paste an `sk-…` key here; it's stored locally and sent only when you click "Get AI summary."
+          {% endif %}
+        </p>
+        <p id="key-status" class="hint key-status"></p>
+        <div class="settings-actions">
+          <button id="clear-key" class="ghost-button ghost-compact" type="button">Remove key</button>
+        </div>
+      </div>
+    </aside>
+
     <main>
       <header class="hero">
         <h1 class="hero-title">Recall</h1>
@@ -89,6 +118,44 @@
           <summary>Show timestamped segments</summary>
           <ul id="segments-list"></ul>
         </details>
+      </section>
+
+      <section
+        class="card summary-card"
+        id="summary-block"
+        hidden
+        aria-live="polite"
+        data-has-default-openai="{{ 'true' if has_default_openai else 'false' }}"
+      >
+        <div class="card-header">
+          <div>
+            <h2>AI summary (optional)</h2>
+            <p class="card-sub">Add-ons powered by an OpenAI key you control.</p>
+          </div>
+        </div>
+        <div class="summary-header">
+          <div>
+            <h3>Generate bullet notes</h3>
+            <p id="summary-note" class="summary-note"></p>
+          </div>
+          <div class="summary-actions">
+            <button id="settings-toggle" type="button" class="ghost-button ghost-compact">
+              OpenAI key setup
+            </button>
+            <button id="generate-summary" type="button" class="pill-button">Get AI summary</button>
+            <button id="copy-summary" type="button" class="ghost-button ghost-compact">
+              <span class="ghost-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" role="presentation" focusable="false">
+                  <path
+                    d="M8 3h11a1 1 0 0 1 1 1v13h-2V5H8zM5 7h11a1 1 0 0 1 1 1v13H5a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1zm1 2v10h9V9z"
+                  />
+                </svg>
+              </span>
+              <span class="ghost-label">Copy summary</span>
+            </button>
+          </div>
+        </div>
+        <p id="summary-text"></p>
       </section>
     </main>
 

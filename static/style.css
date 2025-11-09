@@ -92,6 +92,12 @@ main {
   position: relative;
 }
 
+.hero-actions {
+  margin-top: 1rem;
+  display: flex;
+  justify-content: center;
+}
+
 .hero::after {
   content: '';
   position: absolute;
@@ -142,6 +148,10 @@ main {
   font-size: 1.5rem;
 }
 
+.summary-card {
+  border: 1px solid rgba(99, 102, 241, 0.2);
+}
+
 .card-sub {
   margin: 0 0 1.25rem;
   color: #475569;
@@ -186,8 +196,17 @@ select {
   transition: border 0.2s ease, box-shadow 0.2s ease;
 }
 
+input[type="password"] {
+  padding: 0.85rem;
+  border-radius: 0.85rem;
+  border: 1px solid rgba(15, 23, 42, 0.15);
+  background: #fdfdfd;
+  font-size: 1rem;
+}
+
 input[type="file"]:focus-visible,
-select:focus-visible {
+select:focus-visible,
+input[type="password"]:focus-visible {
   outline: none;
   border-color: #6366f1;
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25);
@@ -258,6 +277,31 @@ button:not(:disabled):hover {
   border-color: rgba(34, 197, 94, 0.6);
   color: #15803d;
   background: rgba(22, 163, 74, 0.08);
+}
+
+.ghost-compact {
+  padding: 0.35rem 0.8rem;
+}
+
+.pill-button {
+  padding: 0.55rem 1.2rem;
+  border-radius: 999px;
+  border: none;
+  background: linear-gradient(135deg, #6366f1, #a855f7);
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.2s ease;
+}
+
+.pill-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.pill-button:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 25px rgba(99, 102, 241, 0.35);
 }
 
 .ghost-icon {
@@ -338,6 +382,51 @@ details {
   border: 1px solid rgba(148, 163, 184, 0.35);
 }
 
+.summary {
+  margin-top: 1.5rem;
+  padding: 1.25rem 1.5rem;
+  border-radius: 1.25rem;
+  background: rgba(244, 247, 255, 0.85);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+.summary-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.summary-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.summary h3 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.summary-note {
+  margin: 0.2rem 0 0;
+  font-size: 0.9rem;
+  color: #475569;
+}
+
+
+.summary p {
+  margin: 0;
+  color: #111827;
+  line-height: 1.6;
+}
+.summary-card .card-sub {
+  margin-bottom: 0.5rem;
+}
+
 summary {
   cursor: pointer;
   font-weight: 600;
@@ -356,6 +445,68 @@ li + li {
 
 li strong {
   color: #475569;
+}
+
+.settings-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(8px);
+  z-index: 10;
+}
+
+.settings-panel {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(420px, 94vw);
+  background: rgba(255, 255, 255, 0.97);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  box-shadow: 0 40px 80px rgba(15, 23, 42, 0.2);
+  padding: 2rem;
+  z-index: 11;
+  border-radius: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+}
+
+.settings-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.settings-header h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.settings-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.settings-actions {
+  margin-top: 0.4rem;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.key-status {
+  font-style: italic;
+  color: #475569;
+}
+
+body.modal-open {
+  overflow: hidden;
+}
+
+.settings-panel[hidden],
+.settings-backdrop[hidden] {
+  display: none !important;
 }
 
 @keyframes drift {
@@ -393,5 +544,9 @@ li strong {
 
   .card-header {
     flex-direction: column;
+  }
+
+  .summary-actions {
+    justify-content: flex-start;
   }
 }
