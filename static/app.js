@@ -7,48 +7,35 @@ const segmentsList = document.getElementById("segments-list");
 const audioInput = document.getElementById("audio");
 const languageSelect = document.getElementById("language");
 const modelSelect = document.getElementById("model");
-const apiKeyInput = document.getElementById("openai-key");
 const copyButton = document.getElementById("copy-transcript");
 const copyButtonLabel = copyButton?.querySelector(".ghost-label");
-const summaryBlock = document.getElementById("summary-block");
-const summaryTextEl = document.getElementById("summary-text");
-const summaryNoteEl = document.getElementById("summary-note");
-const summaryTrigger = document.getElementById("generate-summary");
-const copySummaryButton = document.getElementById("copy-summary");
-const copySummaryLabel = copySummaryButton?.querySelector(".ghost-label");
 const modelHint = document.getElementById("model-hint");
 const progressWrapper = document.getElementById("progress");
 const progressBar = document.getElementById("progress-bar");
 const progressText = document.getElementById("progress-text");
+const summaryBlock = document.getElementById("summary-block");
+const summaryListEl = document.getElementById("summary-list");
+const summaryNoteEl = document.getElementById("summary-note");
+const summaryTrigger = document.getElementById("generate-summary");
+const summaryTriggerDefaultLabel = summaryTrigger?.textContent || "Get AI summary";
+const copySummaryButton = document.getElementById("copy-summary");
+const copySummaryLabel = copySummaryButton?.querySelector(".ghost-label");
 const settingsToggle = document.getElementById("settings-toggle");
 const settingsPanel = document.getElementById("settings-panel");
 const settingsClose = document.getElementById("settings-close");
 const settingsBackdrop = document.getElementById("settings-backdrop");
-const keyStatusEl = document.getElementById("key-status");
+const apiKeyInput = document.getElementById("openai-key");
 const clearKeyButton = document.getElementById("clear-key");
+const keyStatusEl = document.getElementById("key-status");
+const summaryHasServerKey = summaryBlock?.dataset.hasDefaultOpenai === "true";
+const KEY_STORAGE_ID = "recall-openai-key";
 
 let progressInterval = null;
 const PROGRESS_MAX_BEFORE_COMPLETE = 92;
 let lastTranscript = "";
 let lastLanguage = null;
-let summaryAvailable = false;
-const KEY_STORAGE_ID = "recall-openai-key";
-
-const getStoredApiKey = () => window.localStorage.getItem(KEY_STORAGE_ID) || "";
-const getEffectiveApiKey = () => (apiKeyInput?.value.trim() || getStoredApiKey());
-const persistApiKey = (value) => {
-  if (!value) {
-    window.localStorage.removeItem(KEY_STORAGE_ID);
-    return;
-  }
-  window.localStorage.setItem(KEY_STORAGE_ID, value);
-};
-
-const updateKeyStatus = () => {
-  if (!keyStatusEl) return;
-  const hasKey = Boolean(getEffectiveApiKey());
-  keyStatusEl.textContent = hasKey ? "Key saved locally for summaries." : "No key stored. Add one to enable AI summaries.";
-};
+let summaryLoading = false;
+let summaryRaw = "";
 
 const clearProgressInterval = () => {
   if (progressInterval !== null) {
@@ -95,16 +82,75 @@ const failProgress = () => {
   progressBar.style.width = "0%";
 };
 
-const refreshSummaryTriggerState = () => {
-  if (!summaryTrigger || !summaryBlock) return;
-  const hasServerKey = summaryBlock.dataset.hasDefaultOpenai === "true";
-  const usableKey = hasServerKey || Boolean(getEffectiveApiKey());
+const getStoredApiKey = () => window.localStorage?.getItem(KEY_STORAGE_ID) || "";
+
+const persistApiKey = (value) => {
+  if (!window.localStorage) return;
+  if (value) {
+    window.localStorage.setItem(KEY_STORAGE_ID, value);
+  } else {
+    window.localStorage.removeItem(KEY_STORAGE_ID);
+  }
+};
+
+const getEffectiveApiKey = () => (apiKeyInput?.value.trim() || getStoredApiKey());
+
+const updateKeyStatus = () => {
+  if (!keyStatusEl) return;
+  keyStatusEl.textContent = getEffectiveApiKey()
+    ? "Key saved locally for summaries."
+    : "No key stored. Add one to enable AI summaries.";
+};
+
+const refreshSummaryUI = (resetNote = false) => {
+  if (!summaryBlock) return;
   const hasTranscript = Boolean(lastTranscript.trim());
-  summaryTrigger.disabled = !(hasTranscript && usableKey);
-  if (!summaryAvailable && summaryNoteEl && hasTranscript) {
-    summaryNoteEl.textContent = usableKey
-      ? "Click ‘Get AI summary’ to create bullet notes."
-      : "Add your OpenAI key in Settings, then click ‘Get AI summary’.";
+  summaryBlock.hidden = !hasTranscript;
+  if (!hasTranscript) {
+    return;
+  }
+  const hasKey = summaryHasServerKey || Boolean(getEffectiveApiKey());
+  if (summaryTrigger && !summaryLoading) {
+    summaryTrigger.disabled = !hasKey;
+  }
+  if (resetNote && summaryNoteEl) {
+    summaryNoteEl.textContent = hasKey
+      ? 'Click "Get AI summary" to generate bullet notes.'
+      : 'Add your OpenAI key, then click "Get AI summary".';
+  }
+};
+
+const resetSummaryState = () => {
+  if (!summaryBlock) return;
+  summaryRaw = "";
+  if (summaryListEl) summaryListEl.innerHTML = "";
+  summaryBlock.hidden = true;
+  if (copySummaryButton) {
+    copySummaryButton.disabled = true;
+    if (copySummaryLabel) {
+      copySummaryLabel.textContent = "Copy summary";
+    }
+  }
+  summaryLoading = false;
+  if (summaryTrigger) {
+    summaryTrigger.textContent = summaryTriggerDefaultLabel;
+  }
+  refreshSummaryUI(true);
+};
+
+const toggleSettings = (open) => {
+  if (!settingsPanel || !settingsBackdrop) return;
+  if (open) {
+    settingsPanel.hidden = false;
+    settingsPanel.setAttribute("aria-hidden", "false");
+    settingsBackdrop.hidden = false;
+    document.body.classList.add("modal-open");
+    window.requestAnimationFrame(() => apiKeyInput?.focus());
+  } else {
+    settingsPanel.hidden = true;
+    settingsPanel.setAttribute("aria-hidden", "true");
+    settingsBackdrop.hidden = true;
+    document.body.classList.remove("modal-open");
   }
 };
 
@@ -112,34 +158,6 @@ const setStatus = (message, type = "") => {
   statusEl.textContent = message;
   statusEl.className = type ? type : "";
 };
-
-const initializeApiKeyInput = () => {
-  if (!apiKeyInput) {
-    updateKeyStatus();
-    return;
-  }
-  const storedValue = getStoredApiKey();
-  if (storedValue && !apiKeyInput.value) {
-    apiKeyInput.value = storedValue;
-  }
-  apiKeyInput.addEventListener("input", () => {
-    const value = apiKeyInput.value.trim();
-    persistApiKey(value);
-    updateKeyStatus();
-    refreshSummaryTriggerState();
-  });
-  clearKeyButton?.addEventListener("click", () => {
-    persistApiKey("");
-    if (apiKeyInput) {
-      apiKeyInput.value = "";
-    }
-    updateKeyStatus();
-    refreshSummaryTriggerState();
-  });
-  updateKeyStatus();
-};
-
-initializeApiKeyInput();
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -161,6 +179,7 @@ form.addEventListener("submit", async (event) => {
   if (modelSelect) {
     formData.append("model", modelSelect.value);
   }
+
   startProgress("Uploading audio…");
 
   try {
@@ -181,29 +200,11 @@ form.addEventListener("submit", async (event) => {
     outputSection.hidden = false;
     lastTranscript = data.text || "";
     lastLanguage = data.language || null;
-    summaryAvailable = false;
+    resetSummaryState();
     if (copyButton) {
       copyButton.disabled = !data.text;
       if (copyButtonLabel) {
         copyButtonLabel.textContent = "Copy transcript";
-      }
-    }
-
-    if (summaryBlock) {
-      summaryBlock.hidden = false;
-      summaryTextEl.textContent = "";
-      if (summaryNoteEl) {
-        summaryNoteEl.textContent = "";
-      }
-      if (summaryTrigger) {
-        summaryTrigger.textContent = "Get AI summary";
-      }
-      refreshSummaryTriggerState();
-      if (copySummaryButton) {
-        copySummaryButton.disabled = true;
-        if (copySummaryLabel) {
-          copySummaryLabel.textContent = "Copy summary";
-        }
       }
     }
 
@@ -229,25 +230,11 @@ form.addEventListener("submit", async (event) => {
     outputSection.hidden = true;
     lastTranscript = "";
     lastLanguage = null;
-    summaryAvailable = false;
+    resetSummaryState();
     if (copyButton) {
       copyButton.disabled = true;
       if (copyButtonLabel) {
         copyButtonLabel.textContent = "Copy transcript";
-      }
-    }
-    if (summaryBlock) {
-      summaryBlock.hidden = true;
-      summaryTextEl.textContent = "";
-      if (summaryNoteEl) {
-        summaryNoteEl.textContent = "";
-      }
-      if (summaryTrigger) {
-        summaryTrigger.disabled = true;
-        summaryTrigger.textContent = "Get AI summary";
-      }
-      if (copySummaryButton) {
-        copySummaryButton.disabled = true;
       }
     }
   } finally {
@@ -279,77 +266,110 @@ if (copyButton) {
   });
 }
 
-if (summaryTrigger) {
+const handleSummary = async () => {
+  if (!summaryTrigger) return;
+  if (!lastTranscript.trim()) {
+    setStatus("Transcribe a file before requesting a summary", "error");
+    return;
+  }
+
+  if (!summaryHasServerKey && !getEffectiveApiKey()) {
+    refreshSummaryUI(true);
+    toggleSettings(true);
+    return;
+  }
+
+  summaryLoading = true;
   summaryTrigger.disabled = true;
-  summaryTrigger.addEventListener("click", async () => {
-    if (!lastTranscript.trim()) {
-      setStatus("Transcribe a file before requesting a summary", "error");
-      return;
-    }
+  summaryTrigger.textContent = "Summarizing…";
+  if (summaryNoteEl) {
+    summaryNoteEl.textContent = "Calling OpenAI…";
+  }
 
-    summaryTrigger.disabled = true;
-    summaryTrigger.textContent = "Summarizing…";
+  try {
+    const response = await fetch("/summarize", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        text: lastTranscript,
+        language: lastLanguage,
+        openai_api_key: getEffectiveApiKey(),
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || "Failed to summarize transcript");
+    }
+    summaryRaw = data.summary || "";
+    if (summaryListEl) {
+      const items = summaryRaw
+        .split(/\n+/)
+        .map((line) => line.replace(/^[-•\s]+/, "").trim())
+        .filter(Boolean);
+      summaryListEl.innerHTML = "";
+      if (!items.length) {
+        const li = document.createElement("li");
+        li.textContent = summaryRaw || "No summary returned.";
+        summaryListEl.appendChild(li);
+      } else {
+        items.forEach((line) => {
+          const li = document.createElement("li");
+          li.textContent = line;
+          summaryListEl.appendChild(li);
+        });
+      }
+    }
+    if (summaryBlock) {
+      summaryBlock.hidden = false;
+    }
     if (summaryNoteEl) {
-      summaryNoteEl.textContent = "Calling OpenAI…";
+      summaryNoteEl.textContent = data.summary_model
+        ? `Powered by ${data.summary_model}`
+        : "Powered by OpenAI";
     }
-    const payload = {
-      text: lastTranscript,
-      language: lastLanguage,
-      openai_api_key: getEffectiveApiKey(),
-    };
-
-    try {
-      const response = await fetch("/summarize", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to summarize");
+    if (copySummaryButton) {
+      const hasSummary = Boolean(data.summary?.trim());
+      copySummaryButton.disabled = !hasSummary;
+      if (copySummaryLabel) {
+        copySummaryLabel.textContent = "Copy summary";
       }
-      summaryTextEl.textContent = data.summary || "[No summary returned]";
-      if (summaryNoteEl) {
-        summaryNoteEl.textContent = data.summary_model
-          ? `Powered by ${data.summary_model}`
-          : "Powered by OpenAI";
-      }
+    }
+    if (summaryTrigger) {
       summaryTrigger.textContent = "Regenerate summary";
-      summaryAvailable = true;
-      if (copySummaryButton) {
-        copySummaryButton.disabled = !data.summary;
-        if (copySummaryLabel) {
-          copySummaryLabel.textContent = "Copy summary";
-        }
-      }
-    } catch (error) {
-      summaryTextEl.textContent = "";
-      if (summaryNoteEl) {
-        summaryNoteEl.textContent = error.message;
-      }
-      summaryTrigger.textContent = "Get AI summary";
-      summaryAvailable = false;
-      if (copySummaryButton) {
-        copySummaryButton.disabled = true;
-      }
-      setStatus(error.message, "error");
-    } finally {
-      summaryTrigger.disabled = false;
-      refreshSummaryTriggerState();
     }
-  });
-}
+    setStatus("Summary ready", "success");
+  } catch (error) {
+    summaryRaw = "";
+    if (summaryListEl) summaryListEl.innerHTML = "";
+    if (summaryBlock) {
+      summaryBlock.hidden = true;
+    }
+    if (copySummaryButton) {
+      copySummaryButton.disabled = true;
+    }
+    if (summaryNoteEl) {
+      summaryNoteEl.textContent = error.message;
+    }
+    if (summaryTrigger) {
+      summaryTrigger.textContent = summaryTriggerDefaultLabel;
+    }
+    setStatus(error.message, "error");
+  } finally {
+    summaryLoading = false;
+    refreshSummaryUI(false);
+  }
+};
+
+summaryTrigger?.addEventListener("click", handleSummary);
 
 if (copySummaryButton) {
   copySummaryButton.disabled = true;
   copySummaryButton.addEventListener("click", async () => {
-    if (!summaryTextEl.textContent?.trim()) {
+    if (!summaryRaw.trim()) {
       return;
     }
     try {
-      await navigator.clipboard.writeText(summaryTextEl.textContent);
+      await navigator.clipboard.writeText(summaryRaw);
       if (copySummaryLabel) {
         copySummaryLabel.textContent = "Copied!";
       }
@@ -366,6 +386,39 @@ if (copySummaryButton) {
   });
 }
 
+settingsToggle?.addEventListener("click", () => toggleSettings(true));
+settingsClose?.addEventListener("click", () => toggleSettings(false));
+settingsBackdrop?.addEventListener("click", () => toggleSettings(false));
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && settingsPanel && !settingsPanel.hidden) {
+    toggleSettings(false);
+  }
+});
+
+if (apiKeyInput) {
+  const storedKey = getStoredApiKey();
+  if (storedKey) {
+    apiKeyInput.value = storedKey;
+  }
+  apiKeyInput.addEventListener("input", () => {
+    const value = apiKeyInput.value.trim();
+    persistApiKey(value);
+    updateKeyStatus();
+    refreshSummaryUI(true);
+  });
+}
+
+clearKeyButton?.addEventListener("click", () => {
+  if (!apiKeyInput) return;
+  apiKeyInput.value = "";
+  persistApiKey("");
+  updateKeyStatus();
+  refreshSummaryUI(true);
+});
+
+updateKeyStatus();
+refreshSummaryUI(true);
+
 const updateModelHint = () => {
   if (!modelSelect || !modelHint) return;
   const selectedOption = modelSelect.options[modelSelect.selectedIndex];
@@ -379,31 +432,3 @@ if (modelSelect) {
   updateModelHint();
   modelSelect.addEventListener("change", updateModelHint);
 }
-
-const toggleSettings = (open) => {
-  if (!settingsPanel || !settingsBackdrop) return;
-  if (open) {
-    settingsPanel.hidden = false;
-    settingsPanel.setAttribute("aria-hidden", "false");
-    settingsBackdrop.hidden = false;
-    document.body.classList.add("modal-open");
-    window.requestAnimationFrame(() => {
-      apiKeyInput?.focus();
-    });
-  } else {
-    settingsPanel.hidden = true;
-    settingsPanel.setAttribute("aria-hidden", "true");
-    settingsBackdrop.hidden = true;
-    document.body.classList.remove("modal-open");
-  }
-};
-
-settingsToggle?.addEventListener("click", () => toggleSettings(true));
-settingsClose?.addEventListener("click", () => toggleSettings(false));
-settingsBackdrop?.addEventListener("click", () => toggleSettings(false));
-
-document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && !settingsPanel?.hidden) {
-    toggleSettings(false);
-  }
-});

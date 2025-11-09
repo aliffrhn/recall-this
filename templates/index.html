@@ -15,19 +15,10 @@
       </div>
       <div class="settings-body">
         <label for="openai-key">OpenAI API key</label>
-        <input
-          id="openai-key"
-          name="openai_api_key"
-          type="password"
-          placeholder="sk-..."
-          autocomplete="off"
-        />
+        <input id="openai-key" name="openai_api_key" type="password" placeholder="sk-..." autocomplete="off" />
         <p class="hint">
-          {% if has_default_openai %}
-          Using server default when blank. Your key only lives in this browser.
-          {% else %}
-          Paste an `sk-…` key here; it's stored locally and sent only when you click "Get AI summary."
-          {% endif %}
+          {% if has_default_openai %}Using server default when blank. Your key only lives in this browser.{% else %}
+          Paste an `sk-…` key here; it's stored locally and sent only when you click "Get AI summary."{% endif %}
         </p>
         <p id="key-status" class="hint key-status"></p>
         <div class="settings-actions">
@@ -120,28 +111,26 @@
         </details>
       </section>
 
-      <section
-        class="card summary-card"
-        id="summary-block"
-        hidden
-        aria-live="polite"
-        data-has-default-openai="{{ 'true' if has_default_openai else 'false' }}"
-      >
-        <div class="card-header">
+        <section
+          class="summary summary-card"
+          id="summary-block"
+          hidden
+          aria-live="polite"
+          data-has-default-openai="{{ 'true' if has_default_openai else 'false' }}"
+        >
+        <div class="summary-header">
           <div>
-            <h2>AI summary (optional)</h2>
+            <h3>AI summary (optional)</h3>
             <p class="card-sub">Add-ons powered by an OpenAI key you control.</p>
           </div>
         </div>
         <div class="summary-header">
           <div>
             <h3>Generate bullet notes</h3>
-            <p id="summary-note" class="summary-note"></p>
+            <p id="summary-note" class="summary-note">Add your OpenAI key, then click "Get AI summary".</p>
           </div>
           <div class="summary-actions">
-            <button id="settings-toggle" type="button" class="ghost-button ghost-compact">
-              OpenAI key setup
-            </button>
+            <button id="settings-toggle" type="button" class="ghost-button ghost-compact">OpenAI key setup</button>
             <button id="generate-summary" type="button" class="pill-button">Get AI summary</button>
             <button id="copy-summary" type="button" class="ghost-button ghost-compact">
               <span class="ghost-icon" aria-hidden="true">
@@ -155,7 +144,7 @@
             </button>
           </div>
         </div>
-        <p id="summary-text"></p>
+        <ul id="summary-list" class="summary-list"></ul>
       </section>
     </main>
 
