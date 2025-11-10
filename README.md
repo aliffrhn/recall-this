@@ -1,11 +1,102 @@
-# Recall This
+## Recall This — Private Meeting Notes with AI Recaps
 
-![Animated walkthrough of Recall This showing upload, transcript, and summary flows](<recall this features/recall this features.gif>)
-*Quick GIF tour of the upload → transcript → AI summary flow.*
+A local-first web app for turning any meeting recording into a searchable transcript (with timestamps) and optional AI bullet summary—no uploads to third-party servers, no fuss.
 
-Recall This is a lightweight meeting-transcript workspace: drop any recording in the browser, choose the Whisper checkpoint that fits your hardware, and get polished text with timestamps in one go. Everything runs locally on your machine—audio files are deleted as soon as transcription finishes.
+---
 
-## Screenshots
+## Features
+
+- 📂 **Drop & Go uploads** – drag audio (MP3, WAV, M4A, FLAC, OGG, WEBM up to 40 MB) straight into the browser.
+- 🧠 **On-device Whisper** – pick the checkpoint that fits your hardware (`tiny` → `large-v3`); audio is wiped after transcription.
+- 🌐 **Language control** – auto-detect by default with manual overrides (English + Bahasa out of the box, extensible).
+- ⏱️ **Segmented transcripts** – per-utterance timestamps for quick skim, copy, or downstream edits.
+- 📊 **Progress feedback** – clear status and progress bar from upload through transcription.
+- 🤖 **AI summaries (optional)** – bring your own OpenAI key and generate concise recap bullets in-app.
+
+---
+
+## Requirements
+
+- macOS / Linux / Windows
+- Python 3.10+
+- `ffmpeg` installed and on your `PATH`
+- Enough CPU/GPU VRAM for the Whisper model you choose (defaults to `large-v3`)
+- First run needs internet to download Whisper weights
+
+---
+
+## Whisper Background
+
+Recall This runs entirely on [OpenAI's Whisper](https://github.com/openai/whisper), an open-source speech recognition model capable of multilingual transcription and translation. Each dropdown model maps directly to a Whisper checkpoint (`tiny` through `large-v3`), so you can pick the speed/accuracy trade-off that fits your hardware. If you're new to Whisper, the official repository above offers architecture details, benchmarking, and tips for fine-tuning or GPU acceleration.
+
+---
+
+## Quick Start
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate              # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+```bash
+# Optional overrides before launch
+export WHISPER_MODEL=medium            # default: large-v3
+export WHISPER_LANGUAGE=en             # default: auto
+export PORT=5050                       # default: 5000
+
+python app.py
+```
+
+Visit `http://localhost:<PORT>` and:
+
+1. Upload a meeting recording.
+2. (Optional) select language + Whisper model from the dropdowns.
+3. Watch the progress indicator; when it hits 100 %, the transcript + segment list appear instantly.
+4. (Optional) open **OpenAI key setup**, paste your `sk-…` key (stored locally), then click **Get AI summary**.
+
+---
+
+## Configuration
+
+| Variable | Purpose | Notes |
+| --- | --- | --- |
+| `WHISPER_MODEL` | Default checkpoint | Must exist in `WHISPER_MODELS`; fallback is recommended model |
+| `WHISPER_MODELS` | Comma-separated allowlist | Example: `tiny,base,small,medium,large-v2` |
+| `WHISPER_RECOMMENDED_MODEL` | Highlighted dropdown choice | Defaults to `medium`; controls UI “recommended” badge |
+| `WHISPER_LANGUAGE` | Default language hint | `auto` (or unset) keeps auto-detect |
+| `PORT` | Flask port | Default `5000` |
+| `OPENAI_API_KEY` | Server-side fallback key | Users can still provide their own in-browser |
+| `OPENAI_SUMMARY_MODEL` | Model for summaries | Defaults to `gpt-4o-mini` |
+| `OPENAI_API_BASE` | Custom OpenAI-compatible endpoint | Defaults to `https://api.openai.com/v1` |
+
+Update environment variables before running, or bake them into your process manager.
+
+---
+
+## AI Summaries
+
+1. Tap **OpenAI key setup** and paste an API key; it lives only in local storage.
+2. Generate summaries whenever a transcript is present—only the plain text + language hint is sent.
+3. Want managed keys? Set `OPENAI_API_KEY` server-side and leave the UI field blank; the server fallback will trigger when users click **Get AI summary**.
+4. Adjust `OPENAI_SUMMARY_MODEL` to match your account limits or pricing preferences.
+
+The prompt encourages concise, neutral recaps (sentences or bullets) covering topics, decisions, and follow-ups.
+
+---
+
+## How It Works
+
+1. **Upload:** the file is written to a temp path and validated for size + extension.
+2. **Transcribe:** Whisper runs locally; outputs plain text plus timestamped segments.
+3. **Clean-up:** the temp audio file is deleted immediately after transcription completes.
+4. **Optional Summary:** when requested, transcript text is sent to OpenAI’s Chat Completions API and the response is rendered in the UI.
+
+All state resets on refresh; nothing is stored server-side beyond transient temp files.
+
+---
+
+## Gallery
 
 ![Recall This hero screen showing tagline and privacy note](<recall this features/hero.png>)
 *Calm landing screen that explains the privacy-first workflow.*
@@ -19,77 +110,17 @@ Recall This is a lightweight meeting-transcript workspace: drop any recording in
 ![AI summary module generating bullet notes](<recall this features/AI Summary.png>)
 *Optional OpenAI-powered summary for instant meeting recaps.*
 
-## Highlights
+---
 
-- **Private-by-default** – uploads are written to a temp file, processed with Whisper, then removed immediately.
-- **Model picker** – switch between tiny/fast checkpoints and large/high-accuracy ones without redeploying.
-- **Language hints** – auto-detect by default, with quick overrides for English and Bahasa Indonesia (extendable).
-- **Segment view** – inspect timestamped chunks for rapid skim-throughs or editing.
-- **Progress feedback** – see a live status bar while uploads/transcriptions complete.
-- **AI summary add-on** – optional OpenAI recap triggered from the transcript view once you provide a key.
+## Tips & Troubleshooting
 
-### Which model should I start with?
+- **40 MB upload cap** – tweak `app.config["MAX_CONTENT_LENGTH"]` if you need longer calls.
+- **On CPUs** – consider smaller models (`medium`, `small`, `base`) for faster runs; disable FP16 to avoid precision issues.
+- **First model load** – weights download once (≈1–3 GB depending on model); cached afterward.
+- **Language list** – extend `WHISPER_MODELS` + front-end dropdowns when adding new languages or checkpoints.
+- **Key hygiene** – server never stores API keys; local storage clears on browser data reset.
+- **ffmpeg missing?** – ensure it’s installed and accessible; Whisper relies on it for decoding.
 
-- **Most laptops** – use `medium`. It balances speed and accuracy well for meeting notes without needing a big GPU.
-- **High-end GPU / desktop** – use `large-v3` for the best accuracy on long calls or multiple speakers.
-- **Quick drafts** – use `tiny` or `base` when you just need a rough recap in seconds.
+---
 
-## Requirements
-
-- macOS / Linux / Windows with Python 3.10+
-- `ffmpeg` on your `$PATH` (Whisper uses it to decode audio)
-- CPU or GPU VRAM capable of running the chosen Whisper model (defaults to `large-v3`; swap to `base`/`small` if needed)
-- First run needs internet access so Whisper can download weights
-
-## Setup
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate          # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-```
-
-## Running Recall This locally
-
-```bash
-# Optional overrides before launching
-export WHISPER_MODEL=medium        # default: large-v3
-export WHISPER_LANGUAGE=en         # default: auto
-export PORT=5050                   # default: 5000
-
-python app.py
-```
-
-Then visit `http://localhost:<PORT>` (e.g., `http://localhost:5050`) and:
-
-1. Upload a meeting recording (`.mp3`, `.wav`, `.m4a`, `.flac`, `.ogg`, `.webm`, up to ~40 MB).
-2. Optionally pick the language and Whisper model in the form.
-3. Watch the progress indicator; once complete, the transcript plus per-segment timestamps appear instantly.
-4. (Optional) click **OpenAI key setup**, paste your OpenAI key once, and use **Get AI summary** to generate bullet notes. Nothing is stored server-side after refresh.
-
-## Environment knobs
-
-| Variable | Purpose | Notes |
-| --- | --- | --- |
-| `WHISPER_MODEL` | Default checkpoint | Any model from `WHISPER_MODELS` list |
-| `WHISPER_MODELS` | Comma-delimited allowlist | Example: `tiny,base,small,medium,large-v2` |
-| `WHISPER_LANGUAGE` | Default language hint | Use ISO codes (`en`, `id`) or spelled-out names |
-| `PORT` | Flask port | Defaults to `5000` |
-| `OPENAI_API_KEY` | Default key for summaries | Optional; users can still paste their own per upload |
-| `OPENAI_SUMMARY_MODEL` | Model used for summaries | Defaults to `gpt-4o-mini` |
-
-### Summaries with OpenAI
-
-- Open the **OpenAI key setup** modal, paste your `sk-…` key (it stays in your browser), then hit **Get AI summary** once a transcript is ready.
-- Alternatively, set `OPENAI_API_KEY` on the server and leave the UI field blank; the fallback key is used whenever a summary is requested.
-- Recall This only sends the transcript text and selected language to OpenAI during summary generation and never stores the key or responses.
-- Change `OPENAI_SUMMARY_MODEL` if you prefer another model (e.g., `gpt-4o-mini`, `gpt-4o-mini-tts`).
-
-These values populate the UI dropdowns so end users can still override them per upload.
-
-## Notes & tips
-
-- Upload limit is 40 MB (`app.config["MAX_CONTENT_LENGTH"]`); raise it if you need longer calls.
-- On CPU-only hardware, `fp16=False` keeps things stable. If you have a GPU with FP16 support, you can enable mixed precision in `app.py` for faster runs.
-- The first time you choose a new Whisper model, the weights download (~1 GB for base, ~3 GB for large). Subsequent runs reuse the cached files.
-- If you extend the UI with more languages or models, remember to update both `WHISPER_MODELS` (backend) and the dropdown labels (frontend).
+*Capture the conversation, keep it private, and share only the insights.*
