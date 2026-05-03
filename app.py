@@ -8,6 +8,7 @@ from typing import Dict, List, Optional, Tuple
 import requests
 import whisper
 from flask import Flask, jsonify, render_template, request
+from werkzeug.exceptions import RequestEntityTooLarge
 
 logging.basicConfig(level=logging.INFO)
 
@@ -119,6 +120,12 @@ def summarize_transcript(text: str, api_key: str, language: Optional[str]) -> Tu
 
 def allowed_file(filename: str) -> bool:
     return Path(filename).suffix.lower() in ALLOWED_EXTENSIONS
+
+
+@app.errorhandler(RequestEntityTooLarge)
+def handle_file_too_large(_error):
+    return jsonify({"error": "File exceeds the 40 MB upload limit."}), 413
+
 
 @app.route("/")
 def index():

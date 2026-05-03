@@ -159,6 +159,32 @@ const setStatus = (message, type = "") => {
   statusEl.className = type ? type : "";
 };
 
+const safeParseJsonResponse = async (response) => {
+  const text = await response.text();
+  if (!text) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    return null;
+  }
+};
+
+const getResponseErrorMessage = (response, payload, fallbackMessage) => {
+  if (response.status === 413) {
+    return "File exceeds the 40 MB upload limit.";
+  }
+  if (typeof payload?.error === "string" && payload.error.trim()) {
+    return payload.error.trim();
+  }
+  if (response.status >= 500) {
+    return "Server error. Try again in a moment.";
+  }
+  return fallbackMessage;
+};
+
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
 
@@ -188,10 +214,13 @@ form.addEventListener("submit", async (event) => {
       body: formData,
     });
     setProgressMessage("Transcribing audio…");
-    const data = await response.json();
+    const data = await safeParseJsonResponse(response);
 
     if (!response.ok) {
-      throw new Error(data.error || "Failed to transcribe file");
+      throw new Error(getResponseErrorMessage(response, data, "Failed to transcribe file"));
+    }
+    if (!data || typeof data !== "object") {
+      throw new Error("Server returned an unexpected transcription response.");
     }
 
     finishProgress("Transcription complete");
@@ -296,9 +325,12 @@ const handleSummary = async () => {
         openai_api_key: getEffectiveApiKey(),
       }),
     });
-    const data = await response.json();
+    const data = await safeParseJsonResponse(response);
     if (!response.ok) {
-      throw new Error(data.error || "Failed to summarize transcript");
+      throw new Error(getResponseErrorMessage(response, data, "Failed to summarize transcript"));
+    }
+    if (!data || typeof data !== "object") {
+      throw new Error("Server returned an unexpected summary response.");
     }
     summaryRaw = data.summary || "";
     if (summaryListEl) {
