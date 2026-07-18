@@ -1,0 +1,55 @@
+name: 🐛 Bug Report
+description: Something isn't working as expected
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug! Please fill in as much as you can.
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: A clear description of the bug.
+      placeholder: When I upload an M4A file, the progress bar freezes at 50%...
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Start the backend with `python app.py`
+        2. Upload a file larger than 20 MB
+        3. See error
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      placeholder: The transcription should complete and show timestamps.
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS
+        - Windows
+        - Linux
+    validations:
+      required: true
+  - type: input
+    id: whisper-model
+    attributes:
+      label: Whisper model
+      placeholder: e.g. medium, large-v3
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Paste any backend (Flask) or browser console output. This is automatically formatted as code.
+      render: shell
